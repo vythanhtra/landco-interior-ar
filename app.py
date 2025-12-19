@@ -1,145 +1,77 @@
 import streamlit as st
+from supabase import create_client
+import google.generativeai as genai
 import pandas as pd
-import plotly.express as px
-from datetime import datetime
 
-# === PAGE CONFIG ===
-st.set_page_config(
-    page_title="Landco Interior AI",
-    page_icon="🏠",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Cấu hình Page chuẩn Brand Landco
+st.set_page_config(page_title="Landco x Nhà Xinh AI", layout="wide", initial_sidebar_state="expanded")
 
-# === CUSTOM CSS ===
-st.markdown("""
-<style>
-.main {background-color: #f5f5f5;}
-.stButton>button {
-    width: 100%;
-    background-color: #007bff;
-    color: white;
-    border-radius: 5px;
-    height: 3em;
-}
-</style>
-""", unsafe_allow_html=True)
+# --- HÀM KHỞI TẠO (Professional Caching) ---
+@st.cache_resource
+def init_connection():
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
-# === SIDEBAR ===
-st.sidebar.title("🏠 Landco Digital")
-st.sidebar.markdown("### AI-Powered Interior Platform")
+@st.cache_data
+def get_catalog():
+    supabase = init_connection()
+    return supabase.table("landco_catalog").select("*").execute().data
 
-menu = st.sidebar.radio(
-    "Menu",
-    ["🏘️ Tổng quan", "📏 Catalog 3D", "🎨 AI Planner", "📊 Financial", "📄 Research"]
-)
+# --- LOGIC AI ENGINE ---
+def get_ai_consultant(prompt):
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    model = genai.GenerativeModel('gemini-1.5-pro')
+    return model.generate_content(prompt).text
 
-st.sidebar.markdown("---")
-st.sidebar.info("🚀 **MVP Phase 1**\\nStreamlit + AI\\nProduction Ready")
+# --- GIAO DIỆN CHÍNH ---
+st.title("🏙️ Landco Sales AI Engine - Nhà Xinh Edition")
 
-# === MAIN CONTENT ===
-if menu == "🏘️ Tổng quan":
-    st.title("🎉 Hệ Sinh Thái Nội Thất Thông Minh Landco 2025")
-    st.write("Giải pháp Phygital - Kết nối online và offline")
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("SKUs", "300+", "+20% AI")
-    col2.metric("Reach", "75M+", "Zalo Users")
-    col3.metric("Cost Save", "90%", "AI Pipeline")
-    
-    st.image("https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=800",
-             caption="Tầm nhìn không gian số", use_container_width=True)
+# Sidebar Navigation
+with st.sidebar:
+    st.image("https://nhaxinh.com/wp-content/uploads/2023/logo-nhaxinh.png", width=150)
+    st.header("Thông tin dự án")
+    client_name = st.text_input("Tên khách hàng", "Khách hàng VIP")
+    project_type = st.selectbox("Loại hình", ["Chung cư", "Biệt thự", "Nhà phố"])
+    budget = st.slider("Ngân sách dự kiến (Triệu VNĐ)", 50, 1000, 200)
 
-elif menu == "📏 Catalog 3D":
-    st.title("📏 3D Asset Management")
-    st.subheader("WebAR - Scene Viewer & AR Quick Look")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.image("https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400",
-                 caption="Sofa Góc L - 15.9M VND")
-        if st.button("Xem AR", key="sofa"):
-            st.success("🔗 AR Link ready!")
-    
-    with col2:
-        st.image("https://images.unsplash.com/photo-1533090368676-1fd25485db88?w=400",
-                 caption="Bàn Trà - 3.5M VND")
-        if st.button("Xem AR", key="table"):
-            st.success("🔗 AR Link ready!")
-    
-    with col3:
-        st.image("https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400",
-                 caption="Tủ Kệ - 8M VND")
-        if st.button("Xem AR", key="cabinet"):
-            st.success("🔗 AR Link ready!")
+# Main Workspace: 3 Tabs chuẩn quy trình Sale
+tab_ai, tab_catalog, tab_quote = st.tabs(["✨ Tư vấn AI", "📦 Kho sản phẩm", "📑 Báo giá & Export"])
 
-elif menu == "🎨 AI Planner":
-    st.title("🎨 AI Interior Planner")
-    st.write("Upload phòng của bạn, AI sẽ gợi ý thiết kế")
+with tab_ai:
+    st.header("AI Interior Designer Consultant")
+    style_choice = st.radio("Chọn phong cách chủ đạo", ["Scandinavian", "Modern Luxury", "Indochine"], horizontal=True)
     
-    file = st.file_uploader("Tải ảnh phòng", type=["jpg", "png"])
-    
-    if file:
-        col1, col2 = st.columns(2)
+    if st.button("Generate Design Concept"):
+        with st.spinner("Đang phác thảo phương án..."):
+            prompt = f"Tư vấn thiết kế nội thất {project_type} cho {client_name}, ngân sách {budget}tr, phong cách {style_choice}. Sử dụng sản phẩm Nhà Xinh."
+            suggestion = get_ai_consultant(prompt)
+            st.info(suggestion)
+
+with tab_catalog:
+    st.header("Nhà Xinh Master Catalog")
+    try:
+        data = get_catalog()
+        df = pd.DataFrame(data)
         
-        with col1:
-            st.image(file, caption="Input", use_container_width=True)
+        # Filter chuyên nghiệp
+        selected_style = st.multiselect("Lọc theo phong cách", df['style_tag'].unique(), default=df['style_tag'].unique())
+        filtered_df = df[df['style_tag'].isin(selected_style)]
         
-        style = st.selectbox("Phong cách", 
-                            ["Minimalist", "Cozy", "Luxury", "Modern"])
-        
-        if st.button("Run AI Staging"):
-            with st.spinner("🤖 AI đang xử lý..."):
-                import time
-                time.sleep(2)
-                with col2:
-                    st.image("https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=800",
-                             caption=f"AI Result - {style}", use_container_width=True)
-                st.success("✅ Hoàn thành!")
+        st.dataframe(filtered_df[['product_name', 'category', 'price', 'description']], use_container_width=True)
+    except:
+        st.error("Chưa kết nối được Database Supabase. Hãy kiểm tra Secrets.")
 
-elif menu == "📊 Financial":
-    st.title("💰 Lộ Trình Tài Chính MVP")
-    
-    data = {
-        "Hạng mục": ["UI/UX", "Mini App", "Flutter App", "Backend AI", "3D Assets"],
-        "Budget (USD)": [14000, 6500, 20000, 10000, 3500]
-    }
-    df = pd.DataFrame(data)
-    
-    fig = px.bar(df, x="Hạng mục", y="Budget (USD)", 
-                 title="Phân Bổ Ngân Sách",
-                 color="Budget (USD)")
-    st.plotly_chart(fig, use_container_width=True)
-    
-    st.subheader("📈 Timeline")
-    timeline = {
-        "Phase": ["Research", "MVP", "Launch"],
-        "Duration": ["2 tuần", "6 tuần", "2 tuần"],
-        "Status": ["✅ Done", "🔄 In Progress", "⏳ Pending"]
-    }
-    st.table(pd.DataFrame(timeline))
-
-else:  # Research
-    st.title("🔍 Phân Tích Arcway.ai")
-    st.write("So sánh giải pháp kiến trúc 3D")
-    
-    st.markdown("""
-    | Feature | Arcway.ai | Landco |
-    |---------|-----------|--------|
-    | Tương tác | CAD-focus | Photorealism |
-    | Công nghệ | Cloud | WebGPU + R3F |
-    | AI | Limited | Full Pipeline |
-    """)
-    
-    st.info("⚡ Khuyến nghị: AI Sales Agent + 3D Context Understanding")
-
-# === FOOTER ===
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: gray;'>
-🎉 <b>Landco Interior AR - MVP 2025</b><br>
-Powered by Streamlit + AI | Made with ❤️ for VN Market<br>
-<a href='https://github.com/vythanhtra/landco-interior-ar'>GitHub</a>
-</div>
-""", unsafe_allow_html=True)
+with tab_quote:
+    st.header("Báo giá tạm tính")
+    try:
+        # Giả lập chọn sản phẩm để báo giá
+        selected_items = st.multiselect("Chọn sản phẩm vào báo giá", df['product_name'].tolist())
+        if selected_items:
+            quote_df = df[df['product_name'].isin(selected_items)]
+            st.table(quote_df[['product_name', 'price']])
+            total_price = quote_df['price'].sum()
+            st.metric("TỔNG GIÁ TRỊ (VNĐ)", f"{total_price:,.0f}")
+            
+            if st.button("Xuất Báo Giá PDF"):
+                st.success("Tính năng đang được đóng gói. Sẵn sàng tải xuống trong giây lát!")
+    except:
+        st.info("Hãy hoàn thiện bước 'Kho sản phẩm' trước.")
