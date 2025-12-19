@@ -18,12 +18,15 @@ def get_catalog():
 
 # --- LOGIC AI ENGINE ---
 def get_ai_consultant(prompt):
-    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-    response = client.models.generate_content(
-        model="gemini-1.5-flash",
-        contents=prompt
-    )
-    return response.text
+    try:
+        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-exp",
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        return f"AI Error: {str(e)}. Hãy kiểm tra Gemini API Key."
 
 # --- GIAO DIỆN CHÍNH ---
 st.title("🏙️ Landco Sales AI Engine - Nhà Xinh Edition")
