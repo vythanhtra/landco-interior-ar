@@ -19,7 +19,7 @@ def get_catalog():
 # --- LOGIC AI ENGINE ---
 def get_ai_consultant(prompt):
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     return model.generate_content(prompt).text
 
 # --- GIAO DIỆN CHÍNH ---
