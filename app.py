@@ -9,24 +9,36 @@ st.set_page_config(page_title="Landco x Nhà Xinh AI", layout="wide", initial_si
 # --- HÀM KHỞI TẠO (Professional Caching) ---
 @st.cache_resource
 def init_connection():
-    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+    try:
+        url = st.secrets.get("SUPABASE_URL")
+        key = st.secrets.get("SUPABASE_KEY")
+        if not url or not key:
+            st.error("Thiếu SUPABASE_URL hoặc SUPABASE_KEY trong Secrets.")
+            return None
+        return create_client(url, key)
+    except Exception as e:
+        st.error(f"Lỗi khởi tạo Supabase: {str(e)}")
+        return None
 
 @st.cache_data
 def get_catalog():
     supabase = init_connection()
+    if not supabase: return []
     return supabase.table("landco_catalog").select("*").execute().data
 
 # --- LOGIC AI ENGINE ---
 def get_ai_consultant(prompt):
     try:
-        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+        api_key = st.secrets.get("GEMINI_API_KEY")
+        if not api_key: return "Lỗi: Thiếu GEMINI_API_KEY."
+        client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+            model="gemini-1.5-flash",
             contents=prompt
         )
         return response.text
     except Exception as e:
-        return f"AI Error: {str(e)}. Hãy kiểm tra Gemini API Key."
+        return f"AI Error: {str(e)}"
 
 # --- GIAO DIỆN CHÍNH ---
 st.title("🏙️ Landco Sales AI Engine - Nhà Xinh Edition")
@@ -56,28 +68,33 @@ with tab_catalog:
     st.header("Nhà Xinh Master Catalog")
     try:
         data = get_catalog()
-        df = pd.DataFrame(data)
-        
-        # Filter chuyên nghiệp
-        selected_style = st.multiselect("Lọc theo phong cách", df['style_tag'].unique(), default=df['style_tag'].unique())
-        filtered_df = df[df['style_tag'].isin(selected_style)]
-        
-        st.dataframe(filtered_df[['product_name', 'category', 'price', 'description']], use_container_width=True)
-    except:
-        st.error("Chưa kết nối được Database Supabase. Hãy kiểm tra Secrets.")
+        if not data:
+            st.warning("Không có dữ liệu trong catalog.")
+        else:
+            df = pd.DataFrame(data)
+            # Filter chuyên nghiệp
+            selected_style = st.multiselect("Lọc theo phong cách", df['style_tag'].unique(), default=df['style_tag'].unique())
+            filtered_df = df[df['style_tag'].isin(selected_style)]
+            st.dataframe(filtered_df[['product_name', 'category', 'price', 'description']], use_container_width=True)
+    except Exception as e:
+        st.error(f"Lỗi hiển thị Catalog: {str(e)}")
 
 with tab_quote:
     st.header("Báo giá tạm tính")
     try:
-        # Giả lập chọn sản phẩm để báo giá
-        selected_items = st.multiselect("Chọn sản phẩm vào báo giá", df['product_name'].tolist())
-        if selected_items:
-            quote_df = df[df['product_name'].isin(selected_items)]
-            st.table(quote_df[['product_name', 'price']])
-            total_price = quote_df['price'].sum()
-            st.metric("TỔNG GIÁ TRỊ (VNĐ)", f"{total_price:,.0f}")
-            
-            if st.button("Xuất Báo Giá PDF"):
-                st.success("Tính năng đang được đóng gói. Sẵn sàng tải xuống trong giây lát!")
-    except:
-        st.info("Hãy hoàn thiện bước 'Kho sản phẩm' trước.")
+        data = get_catalog()
+        if data:
+            df = pd.DataFrame(data)
+            selected_items = st.multiselect("Chọn sản phẩm vào báo giá", df['product_name'].tolist())
+            if selected_items:
+                quote_df = df[df['product_name'].isin(selected_items)]
+                st.table(quote_df[['product_name', 'price']])
+                total_price = quote_df['price'].sum()
+                st.metric("TỔNG GIÁ TRỊ (VNĐ)", f"{total_price:,.0f}")
+                
+                if st.button("Xuất Báo Giá PDF"):
+                    st.success("Tính năng đang được đóng gói. Sẵn sàng tải xuống trong giây lát!")
+        else:
+            st.info("Hãy hoàn thiện bước 'Kho sản phẩm' trước.")
+    except Exception as e:
+        st.info("Chưa có dữ liệu sản phẩm.")
