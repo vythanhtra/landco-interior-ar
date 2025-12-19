@@ -1,6 +1,6 @@
 import streamlit as st
 from supabase import create_client
-import google.generativeai as genai
+from google import genai
 import pandas as pd
 
 # Cấu hình Page chuẩn Brand Landco
@@ -18,9 +18,12 @@ def get_catalog():
 
 # --- LOGIC AI ENGINE ---
 def get_ai_consultant(prompt):
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    return model.generate_content(prompt).text
+    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
+    )
+    return response.text
 
 # --- GIAO DIỆN CHÍNH ---
 st.title("🏙️ Landco Sales AI Engine - Nhà Xinh Edition")
