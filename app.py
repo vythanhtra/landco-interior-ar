@@ -1,6 +1,6 @@
 import streamlit as st
 from supabase import create_client
-from google import genai
+import google.generativeai as genai
 import pandas as pd
 
 # Cấu hình Page chuẩn Brand Landco
@@ -24,21 +24,24 @@ def init_connection():
 def get_catalog():
     supabase = init_connection()
     if not supabase: return []
-    return supabase.table("landco_catalog").select("*").execute().data
+    try:
+        return supabase.table("landco_catalog").select("*").execute().data
+    except Exception as e:
+        st.error(f"Lỗi truy vấn dữ liệu: {str(e)}")
+        return []
 
 # --- LOGIC AI ENGINE ---
 def get_ai_consultant(prompt):
     try:
         api_key = st.secrets.get("GEMINI_API_KEY")
         if not api_key: return "Lỗi: Thiếu GEMINI_API_KEY."
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=prompt
-        )
+        genai.configure(api_key=api_key)
+        # Sử dụng model gemini-1.5-flash là model mới và nhanh nhất hiện tại
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"AI Error: {str(e)}"
+        return f"AI Error: {str(e)}. Có thể do API Key chưa được kích hoạt hoặc hết hạn mức."
 
 # --- GIAO DIỆN CHÍNH ---
 st.title("🏙️ Landco Sales AI Engine - Nhà Xinh Edition")
@@ -66,18 +69,15 @@ with tab_ai:
 
 with tab_catalog:
     st.header("Nhà Xinh Master Catalog")
-    try:
-        data = get_catalog()
-        if not data:
-            st.warning("Không có dữ liệu trong catalog.")
-        else:
-            df = pd.DataFrame(data)
-            # Filter chuyên nghiệp
-            selected_style = st.multiselect("Lọc theo phong cách", df['style_tag'].unique(), default=df['style_tag'].unique())
-            filtered_df = df[df['style_tag'].isin(selected_style)]
-            st.dataframe(filtered_df[['product_name', 'category', 'price', 'description']], use_container_width=True)
-    except Exception as e:
-        st.error(f"Lỗi hiển thị Catalog: {str(e)}")
+    data = get_catalog()
+    if not data:
+        st.warning("Không có dữ liệu trong catalog hoặc lỗi kết nối.")
+    else:
+        df = pd.DataFrame(data)
+        # Filter chuyên nghiệp
+        selected_style = st.multiselect("Lọc theo phong cách", df['style_tag'].unique(), default=df['style_tag'].unique())
+        filtered_df = df[df['style_tag'].isin(selected_style)]
+        st.dataframe(filtered_df[['product_name', 'category', 'price', 'description']], use_container_width=True)
 
 with tab_quote:
     st.header("Báo giá tạm tính")
